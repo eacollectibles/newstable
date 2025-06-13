@@ -94,33 +94,25 @@ const fetchVariantBySKU = async (sku) => {
           return res.status(500).json({ error: 'Failed to parse variants data', details: parseErr.message });
         }
 
-      console.log('Matched Variant:', JSON.stringify(matchedVariant));
+        const matchedVariant = await fetchVariantBySKU(sku || cardName);
         if (matchedVariant) {
-      if (!matchedVariant) {
-        console.log('No matched variant found. Skipping.');
-        continue;
-    matchedVariant = await fetchVariantBySKU(sku || cardName);
-    const normalizedVariant = {
-      price: matchedVariant.price || matchedVariant.priceV2?.amount || 0,
-      compare_at_price: matchedVariant.compare_at_price || matchedVariant.compareAtPriceV2?.amount || null,
-      title: matchedVariant.title || matchedVariant.product?.title || 'Unknown',
-      sku: matchedVariant.sku || '',
-      inventory_quantity: matchedVariant.inventory_quantity || matchedVariant.inventoryQuantity || 0
-    };
-        price: matchedVariant.price || matchedVariant.priceV2?.amount || 0,
-        compare_at_price: matchedVariant.compare_at_price || matchedVariant.compareAtPriceV2?.amount || null,
-        title: matchedVariant.title || matchedVariant.product?.title || 'Unknown',
-        inventory_quantity: matchedVariant.inventory_quantity || matchedVariant.inventoryQuantity || 0
-      };
-      const tradeInValue = parseFloat((itemValue * 0.3).toFixed(2));
-      results.push({
-        cardName,
-        itemValue,
-        tradeInValue,
-        quantity
-      });
+          const variantPrice = parseFloat(matchedVariant.price || 0);
+          const tradeInValue = parseFloat((variantPrice * 0.3).toFixed(2));
+          totalValue += tradeInValue * quantity;
+          results.push({
+            cardName: matchedVariant.title,
+            match: matchedVariant.title,
+            tradeInValue,
+            quantity
+          });
           continue;
         } else {
+          results.push({
+            cardName,
+            match: null,
+            tradeInValue: 0,
+            quantity
+          });
           continue;
         }
       }
@@ -128,7 +120,16 @@ const fetchVariantBySKU = async (sku) => {
       // Fallback to first product variant
       const match = productData.products[0];
       const variant = match.variants[0];
+      const variantPrice = parseFloat(variant.price || 0);
+      const tradeInValue = parseFloat((variantPrice * 0.3).toFixed(2));
+      totalValue += tradeInValue * quantity;
 
+      results.push({
+        cardName,
+        match: match.title,
+        tradeInValue,
+        quantity
+      });
     }
 
     const finalPayout = overrideTotal !== undefined ? parseFloat(overrideTotal) : totalValue;
@@ -159,7 +160,6 @@ const fetchVariantBySKU = async (sku) => {
     }
 
     res.status(200).json({
-      matchedVariant,
       giftCardCode,
       estimate: estimateMode,
       employeeName,
