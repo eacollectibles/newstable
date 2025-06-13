@@ -94,109 +94,22 @@ const fetchVariantBySKU = async (sku) => {
           return res.status(500).json({ error: 'Failed to parse variants data', details: parseErr.message });
         }
 
-        
-      let variantPrice = 0;
-      let matchedVariant = null;
-
-      // Option 1: GraphQL by SKU
-      try {
-        matchedVariant = await fetchVariantBySKU(sku || cardName);
-        if (matchedVariant && matchedVariant.price) {
-          variantPrice = parseFloat(matchedVariant.price);
-          console.log("Resolved via Option 1 (SKU):", variantPrice);
-        }
-      } catch (err) {
-        console.warn("Option 1 failed:", err.message);
-      }
-
-      // Option 2: REST search by title
-      if (!variantPrice) {
-        try {
-          const productRes = await fetch(
-            `https://${SHOPIFY_DOMAIN}/admin/api/2023-10/products.json?title=${encodeURIComponent(cardName)}`,
-            {
-              method: 'GET',
-              headers: {
-                'X-Shopify-Access-Token': ACCESS_TOKEN,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          const productText = await productRes.text();
-          let productData = JSON.parse(productText);
-          const product = productData?.products?.[0];
-          const variant = product?.variants?.[0];
-          if (variant?.price) {
-            variantPrice = parseFloat(variant.price);
-            matchedVariant = variant;
-            console.log("Resolved via Option 2 (Title):", variantPrice);
-          }
-        } catch (err) {
-          console.warn("Option 2 failed:", err.message);
-        }
-      }
-
-      // Option 3: Fallback to all variants
-      if (!variantPrice) {
-        try {
-          const variantsRes = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2023-10/variants.json`, {
-            method: 'GET',
-            headers: {
-              'X-Shopify-Access-Token': ACCESS_TOKEN,
-              'Content-Type': 'application/json'
-            }
+        const matchedVariant = await fetchVariantBySKU(sku || cardName);
+        if (matchedVariant) {
+          const variantPrice = parseFloat(matchedVariant.price || 0);
+          const tradeInValue = parseFloat((variantPrice * 0.3).toFixed(2));
+          totalValue += tradeInValue * quantity;
+          results.push({
+            cardName: matchedVariant.title,
+            match: matchedVariant.title,
+            tradeInValue,
+            quantity
           });
-          const variantsText = await variantsRes.text();
-          const variantsData = JSON.parse(variantsText);
-          const match = variantsData.variants.find(v => v.sku === sku || v.title === cardName);
-          if (match?.price) {
-            variantPrice = parseFloat(match.price);
-            matchedVariant = match;
-            console.log("Resolved via Option 3 (Brute Force):", variantPrice);
-          }
-        } catch (err) {
-          console.warn("Option 3 failed:", err.message);
-        }
-      }
-
-      // Option 4: Hardcoded fallback
-      if (!variantPrice) {
-        const fallbackPrices = {
-          "Zapdos (H32)": 40.00,
-          "Charizard (H1)": 100.00
-        };
-        if (fallbackPrices[cardName]) {
-          variantPrice = fallbackPrices[cardName];
-          console.log("Resolved via Option 4 (Static Table):", variantPrice);
-        }
-      }
-
-      // Option 5: Fail and log
-      if (!variantPrice) {
-        return res.status(404).json({
-          error: "Could not resolve item price for this card",
-          attemptedSKU: sku,
-          cardName
-        });
-      }
-
-      const tradeInValue = parseFloat((variantPrice * 0.30).toFixed(2));
-      totalValue += tradeInValue * quantity;
-
-      results.push({
-        cardName,
-        match: matchedVariant.title,
-        itemValue: variantPrice,
-        tradeInValue,
-        quantity
-      });
-      continue;
-
+          continue;
         } else {
           results.push({
             cardName,
             match: null,
-            itemValue: 0,
             tradeInValue: 0,
             quantity
           });
@@ -205,7 +118,18 @@ const fetchVariantBySKU = async (sku) => {
       }
 
       // Fallback to first product variant
-      
+      const match = productData.products[0];
+      const variant = match.variants[0];
+      const variantPrice = parseFloat(variant.price || 0);
+      const tradeInValue = parseFloat((variantPrice * 0.3).toFixed(2));
+      totalValue += tradeInValue * quantity;
+
+      results.push({
+        cardName,
+        match: match.title,
+        tradeInValue,
+        quantity
+      });
     }
 
     const finalPayout = overrideTotal !== undefined ? parseFloat(overrideTotal) : totalValue;
