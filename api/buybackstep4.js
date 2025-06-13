@@ -196,6 +196,7 @@ const fetchVariantBySKU = async (sku) => {
           results.push({
             cardName,
             match: null,
+            itemValue: 0,
             tradeInValue: 0,
             quantity
           });
@@ -204,18 +205,7 @@ const fetchVariantBySKU = async (sku) => {
       }
 
       // Fallback to first product variant
-      const match = productData.products[0];
-      const variant = match.variants[0];
-      const variantPrice = parseFloat(variant.price || 0);
-      const tradeInValue = parseFloat((variantPrice * 0.3).toFixed(2));
-      totalValue += tradeInValue * quantity;
-
-      results.push({
-        cardName,
-        match: match.title,
-        tradeInValue,
-        quantity
-      });
+      
     }
 
     const finalPayout = overrideTotal !== undefined ? parseFloat(overrideTotal) : totalValue;
