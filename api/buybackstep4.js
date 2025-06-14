@@ -99,7 +99,34 @@ module.exports = async function handler(req, res) {
     }
 
 
+
+    let giftCardCode = null;
+    if (payoutMethod === "store-credit" && totalValue > 0) {
+      try {
+        const giftCardRes = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2023-10/gift_cards.json`, {
+          method: "POST",
+          headers: {
+            "X-Shopify-Access-Token": ACCESS_TOKEN,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            gift_card: {
+              initial_value: totalValue.toFixed(2),
+              note: `Buyback payout for ${employeeName || "Unknown"}`,
+              currency: "CAD"
+            }
+          })
+        });
+        const giftCardData = await giftCardRes.json();
+        giftCardCode = giftCardData?.gift_card?.code || null;
+      } catch (err) {
+        console.error("Gift card creation failed:", err);
+      }
+    }
+
+
 res.status(200).json({
+    giftCardCode,
     giftCardCode,
       name: product.title,
       sku: variant.sku,
